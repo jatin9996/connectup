@@ -46,4 +46,4 @@ type RefreshTokenRequest struct {
 // ProfileResponse represents the response for get profile endpoint
 type ProfileResponse struct {
 	User User `json:"user"`
-} 
+}

@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
+	"strings"
 
+	"github.com/connect-up/auth-service/handlers"
+	"github.com/connect-up/auth-service/internal/matchmaker"
 	"github.com/connect-up/auth-service/models"
 	"github.com/connect-up/auth-service/routes"
 	"github.com/connect-up/auth-service/utils"
@@ -47,8 +51,25 @@ func main() {
 		c.Next()
 	})
 
+	// Initialize matchmaker service
+	kafkaBrokers := strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ",")
+	kafkaTopic := getEnv("KAFKA_USER_UPDATED_TOPIC", "user-updated")
+	
+	matchmakerService := matchmaker.NewService(kafkaBrokers, kafkaTopic)
+	defer matchmakerService.Close()
+
+	// Start Kafka consumer in background
+	go func() {
+		ctx := context.Background()
+		matchmakerService.StartConsumer(ctx)
+	}()
+
+	// Initialize matchmaker handler
+	matchmakerHandler := handlers.NewMatchmakerHandler(matchmakerService)
+
 	// Setup routes
 	routes.SetupAuthRoutes(router, models.DB)
+	routes.SetupMatchmakerRoutes(router, matchmakerHandler)
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
@@ -59,13 +80,18 @@ func main() {
 	})
 
 	// Get port from environment or use default
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
+	port := getEnv("PORT", "8080")
 
 	log.Printf("Auth service starting on port %s", port)
 	if err := router.Run(":" + port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
+}
+
+// getEnv gets an environment variable or returns a default value
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
