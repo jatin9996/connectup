@@ -2,9 +2,6 @@ package models
 
 import (
 	"time"
-)
-
-// UserProfile represents an extended user profile for matchmaking
 type UserProfile struct {
 	UserID     string    `json:"user_id" db:"user_id"`
 	Tags       []string  `json:"tags" db:"tags"`
